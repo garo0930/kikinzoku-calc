@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>貴金属価格計算ツール</title>
+  <style>
+    .calc-set { margin-bottom: 1.5em; border: 1px solid #ccc; padding: 1em; }
+    button { margin-right: 1em; }
+    .totals { margin-top: 1em; font-weight: bold; }
+  </style>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  
+</head>
+<body>
+  <h1>貴金属価格計算ツール</h1>
+
+  <div class="totals">
+    💰 合計金額<br>
+    - 掛け率1.0: <span id="totalBase">0</span> 円<br>
+    - 選択掛け率: <span id="totalSelected">0</span> 円<br>
+    - 💸 差額: <span id="totalDiff">0</span> 円
+  </div>
+<!-- 📁 HTML部分に以下を追加（例：ボタンの下など） -->
+<div style="margin-top: 1em;">
+  <h3>💾 保存 / 読み込み</h3>
+  <input type="text" id="saveName" placeholder="保存名を入力" />
+  <button id="saveBtn">💾 名前を付けて保存</button>
+  <br><br>
+  <label>📄 保存データ一覧：</label>
+  <select id="savedList"></select>
+  <button id="loadBtn">🔄 読み込む</button>
+  <button id="deleteBtn">🗑 削除</button>
+</div>
+
+<script>
+function getCalcDataSets() {
+  const sets = [];
+  document.querySelectorAll('.calc-set').forEach(set => {
+    sets.push({
+      metal: set.querySelector('.metalSelect').value,
+      gram: parseFloat(set.querySelector('.gramInput').value),
+      stoneType: set.querySelector('.stoneType').value,
+      stoneCarat: parseFloat(set.querySelector('.stoneCarat').value),
+      stoneWeight: parseFloat(set.querySelector('.stoneWeight').value),
+      rate: (() => {
+      const rateInput = set.querySelector('.rateInput');
+      if (rateInput) {
+        return parseFloat(rateInput.value) / 100;
+      } else {
+        const rateSelect = set.querySelector('.rateSelect');
+        return rateSelect ? parseFloat(rateSelect.value) : 1.0;
+      }
+    })()
+    });
+  });
+  return sets;
+}
+
+function loadCalcDataSets(sets) {
+  document.getElementById('calculator-area').innerHTML = '';
+  sets.forEach(data => {
+    addCalcSet();
+    const lastSet = document.querySelectorAll('.calc-set');
+    const set = lastSet[lastSet.length - 1];
+    set.querySelector('.metalSelect').value = data.metal;
+    set.querySelector('.gramInput').value = data.gram;
+    set.querySelector('.stoneType').value = data.stoneType;
+    set.querySelector('.stoneCarat').value = data.stoneCarat;
+    set.querySelector('.stoneWeight').value = data.stoneWeight;
+    set.querySelector('.rateInput').value = (parseFloat(data.rate) * 100).toFixed(0);
+    calculateOne(set);
+  });
+}
+
+function updateSavedList() {
+  const list = document.getElementById('savedList');
+  list.innerHTML = '';
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('save_')) {
+      const entry = JSON.parse(localStorage.getItem(key));
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = `${entry.name}（${entry.timestamp}）`;
+      list.appendChild(option);
+    }
+  });
+}
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const name = document.getElementById('saveName').value.trim();
+  if (!name) return alert('保存名を入力してください');
+  const data = getCalcDataSets();
+  const now = new Date();
+  const timestamp = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const saveObj = {
+    name,
+    timestamp,
+    data
+  };
+  localStorage.setItem('save_' + name, JSON.stringify(saveObj));
+  updateSavedList();
+  alert(`「${name}」として保存しました`);
+});
+
+document.getElementById('loadBtn').addEventListener('click', () => {
+  const key = document.getElementById('savedList').value;
+  const raw = localStorage.getItem(key);
+  if (!raw) return alert('データが見つかりません');
+  const parsed = JSON.parse(raw);
+  loadCalcDataSets(parsed.data);
+});
+
+document.getElementById('deleteBtn').addEventListener('click', () => {
+  const key = document.getElementById('savedList').value;
+  if (confirm(`「${key.replace('save_', '')}」を削除しますか？`)) {
+    localStorage.removeItem(key);
+    updateSavedList();
+  }
+});
+
+window.addEventListener('DOMContentLoaded', updateSavedList);
+
+
+</script>
+
+
+</style>
+
+
+
+
+
+
+
+<br />
+  <button id="add">➕ 計算欄を追加</button>
+  <button id="clear">🗑 全て削除（1つ残す）</button>
+  <button id="export">📤 Excel出力</button>
+  
+  <div id="calculator-area"></div>
+
+  <template id="calc-template">
+    <div class="calc-set">
+      <label>金属を選択：</label>
+      <select class="metalSelect"></select>
+      <br />
+      <label>g数を入力：</label>
+      <input type="number" class="gramInput" value="0" />
+      <br />
+      <label>石の種類：</label>
+      <select class="stoneType">
+        <option value="">なし</option>
+        <option value="D">D（ダイヤ）</option>
+        <option value="S">S（サファイア）</option>
+        <option value="R">R（ルビー）</option>
+        <option value="E">E（エメラルド）</option>
+        <option value="その他">その他</option>
+      </select>
+      <br />
+      <label>石目（ct）：</label>
+      <input type="number" class="stoneCarat" step="0.01" value="0.00" />
+      <br />
+      <br />
+      <label>石の重さ（g/マイナス）：</label>
+      <br />
+      <input type="number" class="stoneWeight" step="0.01" value="0.00" />
+      <label>掛け率：</label>
+      <div style="display: inline-flex; align-items: center; gap: 4px;">
+        <input type="number" class="rateInput" step="1" value="100" min="0" max="100" style="width:60px;" />
+        <button type="button" class="rateAdjustBtn rateUpBtn">⬆</button>
+        <button type="button" class="rateAdjustBtn rateDownBtn">⬇</button>
+      </div>
+  
+      <p>
+        🧮 掛け率1.0: <span class="baseValue">0</span> 円<br />
+        🧮 選択掛け率: <span class="selectedValue">0</span> 円<br />
+        💸 差額: <span class="diffValue">0</span> 円<br />
+        🧪 純正g: <span class="realGram">0</span> g
+      </p>
+    </div>
+  </template>
+  
+
+  <script>
+    const rates = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
+    let metalData = [];
+
+    function updateGrandTotals() {
+  let totalBase = 0;
+  let totalSelected = 0;
+
+  document.querySelectorAll('.calc-set').forEach(set => {
+    const gram = parseFloat(set.querySelector('.gramInput').value);
+    const stoneWeight = parseFloat(set.querySelector('.stoneWeight').value);
+    const cleanStoneWeight = isNaN(stoneWeight) || stoneWeight < 0 ? 0 : stoneWeight;
+    const realGram = Math.max(gram - cleanStoneWeight, 0);
+
+    const price = parseFloat(set.querySelector('.metalSelect').value);
+    const rate = parseFloat(set.querySelector('.rateSelect').value);
+
+    totalBase += Math.floor(realGram * price * 1.0);
+    totalSelected += Math.floor(realGram * price * rate);
+  });
+
+  const diff = totalSelected - totalBase;
+
+  document.getElementById('totalBase').textContent = totalBase.toLocaleString();
+  document.getElementById('totalSelected').textContent = totalSelected.toLocaleString();
+  document.getElementById('totalDiff').textContent = diff.toLocaleString();
+}
+
+
+
+function calculateOne(calcSet) {
+  const select = calcSet.querySelector('.metalSelect');
+  const input = calcSet.querySelector('.gramInput');
+  const stoneWeightInput = calcSet.querySelector('.stoneWeight');
+  const rateInput = calcSet.querySelector('.rateInput');
+  const baseSpan = calcSet.querySelector('.baseValue');
+  const selectedSpan = calcSet.querySelector('.selectedValue');
+  const diffSpan = calcSet.querySelector('.diffValue');
+  const realGramSpan = calcSet.querySelector('.realGram');
+
+  const gram = parseFloat(input.value);
+  let stoneWeight = parseFloat(stoneWeightInput.value);
+  if (isNaN(stoneWeight) || stoneWeight < 0) stoneWeight = 0;
+
+  const realGram = Math.max(gram - stoneWeight, 0);
+  const pricePerGram = parseFloat(select.value);
+  const rate = parseFloat(rateInput.value) / 100;
+
+  const baseTotal = Math.floor(realGram * pricePerGram * 1.0);
+  const selectedTotal = Math.floor(realGram * pricePerGram * rate);
+  const diff = selectedTotal - baseTotal;
+
+  baseSpan.textContent = baseTotal.toLocaleString();
+  selectedSpan.textContent = selectedTotal.toLocaleString();
+  diffSpan.textContent = diff.toLocaleString();
+  realGramSpan.textContent = realGram.toFixed(2);
+
+  updateGrandTotals();
+}
+
+function updateGrandTotals() {
+  let totalBase = 0;
+  let totalSelected = 0;
+
+  document.querySelectorAll('.calc-set').forEach(set => {
+    const gram = parseFloat(set.querySelector('.gramInput').value);
+    const stoneWeight = parseFloat(set.querySelector('.stoneWeight').value);
+    const cleanStoneWeight = isNaN(stoneWeight) || stoneWeight < 0 ? 0 : stoneWeight;
+    const realGram = Math.max(gram - cleanStoneWeight, 0);
+    const price = parseFloat(set.querySelector('.metalSelect').value);
+    const rate = parseFloat(set.querySelector('.rateInput').value) / 100;
+
+    totalBase += Math.floor(realGram * price * 1.0);
+    totalSelected += Math.floor(realGram * price * rate);
+  });
+
+  const diff = totalSelected - totalBase;
+
+  document.getElementById('totalBase').textContent = totalBase.toLocaleString();
+  document.getElementById('totalSelected').textContent = totalSelected.toLocaleString();
+  document.getElementById('totalDiff').textContent = diff.toLocaleString();
+}
+
+
+
+
+function addCalcSet() {
+  const template = document.getElementById('calc-template');
+  const clone = template.content.cloneNode(true);
+  const calcSet = clone.querySelector('.calc-set');
+
+  const select = calcSet.querySelector('.metalSelect');
+  const input = calcSet.querySelector('.gramInput');
+  const stoneWeightInput = calcSet.querySelector('.stoneWeight');
+  const rateInput = calcSet.querySelector('.rateInput');
+  const upBtn = calcSet.querySelector('.rateUpBtn');
+  const downBtn = calcSet.querySelector('.rateDownBtn');
+
+  const grouped = {};
+  metalData.forEach(item => {
+    if (!grouped[item.category]) grouped[item.category] = [];
+    grouped[item.category].push(item);
+  });
+
+  for (const category in grouped) {
+    const optGroup = document.createElement('optgroup');
+    optGroup.label = category;
+
+    grouped[category].forEach(item => {
+      const option = document.createElement('option');
+      option.value = item.price;
+      option.textContent = `${item.grade}（¥${item.price.toLocaleString()}）`;
+      optGroup.appendChild(option);
+    });
+
+    select.appendChild(optGroup);
+  }
+
+  // イベント登録
+  [select, input, stoneWeightInput, rateInput].forEach(el => {
+    el.addEventListener('input', () => calculateOne(calcSet));
+    el.addEventListener('change', () => calculateOne(calcSet));
+  });
+
+  upBtn.addEventListener('click', () => {
+    rateInput.value = Math.min(parseInt(rateInput.value) + 1, 100);
+    calculateOne(calcSet);
+  });
+
+  downBtn.addEventListener('click', () => {
+    rateInput.value = Math.max(parseInt(rateInput.value) - 1, 0);
+    calculateOne(calcSet);
+  });
+
+  document.getElementById('calculator-area').appendChild(calcSet);
+  calculateOne(calcSet);
+}
+
+
+    function clearAllButOne() {
+      const area = document.getElementById('calculator-area');
+      const allSets = area.querySelectorAll('.calc-set');
+      if (allSets.length > 1) {
+        allSets.forEach((set, idx) => {
+          if (idx > 0) set.remove();
+        });
+      }
+      updateGrandTotals();
+    }
+
+    fetch('https://script.google.com/macros/s/AKfycbyyupgPGlLfACIzeP8od2JjlCUcS3ZJDmRKD35lk5EvY6ZnpXv-FnwpwcPTtb3cjNF3LQ/exec')
+  .then(res => res.json())
+  .then(data => {
+    console.log("✅ GASから取得したデータ:", data); // これを確認！
+    metalData = data;
+    addCalcSet(); // 初期化処理
+  })
+  .catch(err => console.error("❌ fetchエラー:", err));
+
+    document.getElementById('add').addEventListener('click', addCalcSet);
+    document.getElementById('clear').addEventListener('click', clearAllButOne);
+
+    document.getElementById('export').addEventListener('click', () => {
+  const exportData = [];
+
+  document.querySelectorAll('.calc-set').forEach((set, index) => {
+    const metalSelect = set.querySelector('.metalSelect');
+    const gram = parseFloat(set.querySelector('.gramInput').value);
+    const stoneType = set.querySelector('.stoneType')?.value || "";
+    const stoneCarat = parseFloat(set.querySelector('.stoneCarat')?.value || 0);
+
+    const fullMetalText = metalSelect.options[metalSelect.selectedIndex].textContent;
+    const metalShortName = fullMetalText.split('（')[0]; // 「K24」だけに
+
+    exportData.push({
+      No: `①`.charCodeAt(0) + index <= 0x2460 + 19 // ①～⑳まで表示可能
+        ? String.fromCharCode(0x2460 + index)
+        : `No${index + 1}`,
+      金種: metalShortName,
+      総重量: `総重量${gram}g`,
+      石の種類: `石${stoneType}`,
+      石目: `${stoneCarat}c`
+    });
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'データ');
+  XLSX.writeFile(workbook, '貴金属データ.xlsx');
+});
+
+  </script>
+</body>
+
+</html>
